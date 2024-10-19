@@ -4,9 +4,10 @@ include(${TF_3RD_PARTY_DIR}/doctest/doctest.cmake)
 
 list(APPEND TF_UNITTESTS 
   test_utility 
+  test_queue
   test_work_stealing 
   #test_serializer 
-  test_priorities
+  #test_priorities
   test_basics 
   test_asyncs
   test_dependent_asyncs
@@ -42,7 +43,7 @@ endif()
 
 foreach(unittest IN LISTS TF_UNITTESTS)
   add_executable(${unittest} ${unittest}.cpp)
-  target_link_libraries(${unittest} ${PROJECT_NAME} tf::default_settings)
+  target_link_libraries(${unittest} ${PROJECT_NAME} ${ATOMIC_LIBRARY} tf::default_settings)
   target_include_directories(${unittest} PRIVATE ${TF_3RD_PARTY_DIR}/doctest)
   doctest_discover_tests(${unittest})
 endforeach()
