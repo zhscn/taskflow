@@ -1,4 +1,4 @@
-#ifdef __cpp_lib_atomic_wait
+#if __cplusplus >= TF_CPP20
 
 #pragma once
 
@@ -55,14 +55,14 @@ class AtomicNotifier {
 
 inline void AtomicNotifier::notify_one() noexcept {
   uint64_t prev = _state.fetch_add(EPOCH_INC, std::memory_order_acq_rel);
-  if((prev & WAITER_MASK))  { // has waiter (typically unlikely)
+  if(TF_UNLIKELY(prev & WAITER_MASK))  { // has waiter (typically unlikely)
     _state.notify_one();
   }
 }
 
 inline void AtomicNotifier::notify_all() noexcept {
   uint64_t prev = _state.fetch_add(EPOCH_INC, std::memory_order_acq_rel);
-  if((prev & WAITER_MASK))  { // has waiter (typically unlikely)
+  if(TF_UNLIKELY(prev & WAITER_MASK))  { // has waiter (typically unlikely)
     _state.notify_all();
   }
 }
@@ -148,22 +148,37 @@ class AtomicNotifierV2 {
   std::vector<Waiter> _waiters;
 
   static constexpr uint64_t WAITER_INC  {1};
-  static constexpr size_t   EPOCH_SHIFT {32};
+  static constexpr uint64_t EPOCH_SHIFT {32};
   static constexpr uint64_t EPOCH_INC   {uint64_t(1) << EPOCH_SHIFT};
   static constexpr uint64_t WAITER_MASK {EPOCH_INC - 1};
 };
 
 inline void AtomicNotifierV2::notify_one() noexcept {
-  if((_state.load(std::memory_order_seq_cst) & WAITER_MASK) != 0) {
-    _state.fetch_add(EPOCH_INC, std::memory_order_release);
-    _state.notify_one(); 
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+  //if((_state.load(std::memory_order_acquire) & WAITER_MASK) != 0) {
+  //  _state.fetch_add(EPOCH_INC, std::memory_order_release);
+  //  _state.notify_one(); 
+  //}
+
+  for(uint64_t state = _state.load(std::memory_order_acquire); state & WAITER_MASK;) {
+    if(_state.compare_exchange_weak(state, state + EPOCH_INC, std::memory_order_acquire)) {
+      _state.notify_one(); 
+      break;
+    }
   }
 }
 
 inline void AtomicNotifierV2::notify_all() noexcept {
-  if((_state.load(std::memory_order_seq_cst) & WAITER_MASK) != 0) {
-    _state.fetch_add(EPOCH_INC, std::memory_order_release);
-    _state.notify_all(); 
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+  //if((_state.load(std::memory_order_acquire) & WAITER_MASK) != 0) {
+  //  _state.fetch_add(EPOCH_INC, std::memory_order_release);
+  //  _state.notify_all(); 
+  //}
+  for(uint64_t state = _state.load(std::memory_order_acquire); state & WAITER_MASK;) {
+    if(_state.compare_exchange_weak(state, state + EPOCH_INC, std::memory_order_acquire)) {
+      _state.notify_all(); 
+      break;
+    }
   }
 }
   
@@ -183,8 +198,9 @@ inline size_t AtomicNotifierV2::size() const noexcept {
 }
 
 inline void AtomicNotifierV2::prepare_wait(Waiter* waiter) noexcept {
-  uint64_t prev = _state.fetch_add(WAITER_INC, std::memory_order_acquire);
-  waiter->epoch = prev + WAITER_INC; 
+  auto prev = _state.fetch_add(WAITER_INC, std::memory_order_relaxed);
+  waiter->epoch = (prev >> EPOCH_SHIFT);
+  std::atomic_thread_fence(std::memory_order_seq_cst);
 }
 
 inline void AtomicNotifierV2::cancel_wait(Waiter*) noexcept {
@@ -192,12 +208,19 @@ inline void AtomicNotifierV2::cancel_wait(Waiter*) noexcept {
 }
 
 inline void AtomicNotifierV2::commit_wait(Waiter* waiter) noexcept {
-  _state.wait(waiter->epoch, std::memory_order_relaxed);
-  _state.fetch_sub(WAITER_INC, std::memory_order_relaxed);
+  uint64_t prev = _state.load(std::memory_order_seq_cst);
+  while((prev >> EPOCH_SHIFT) == waiter->epoch) {
+    _state.wait(prev, std::memory_order_seq_cst); 
+    prev = _state.load(std::memory_order_seq_cst);
+  }
+  // memory_order_relaxed would suffice for correctness, but the faster
+  // #waiters gets to 0, the less likely it is that we'll do spurious wakeups
+  // (and thus system calls)
+  _state.fetch_sub(WAITER_INC, std::memory_order_seq_cst);
 }
 
 
 
-} // namespace taskflow
+} // namespace taskflow -------------------------------------------------------
 
 #endif

@@ -7,7 +7,6 @@ list(APPEND TF_UNITTESTS
   test_queue
   test_work_stealing 
   #test_serializer 
-  #test_priorities
   test_basics 
   test_asyncs
   test_dependent_asyncs
@@ -22,16 +21,19 @@ list(APPEND TF_UNITTESTS
   test_sort
   test_scan
   test_find
-  test_compositions
+  test_modules
   test_traversals
   test_pipelines
   test_scalable_pipelines
   test_deferred_pipelines
   test_deferred_scalable_pipelines
-  test_runtimes
   test_data_pipelines
+  test_runtimes
+  test_workers
+  #test_exceptions
 )
 
+# we only do exception tests if sanitizer is not enabled
 string(FIND '${CMAKE_CXX_FLAGS}' "-fsanitize" sanitize)
 #message("sanitize='${sanitize}'")
 

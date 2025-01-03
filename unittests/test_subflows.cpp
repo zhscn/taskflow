@@ -444,30 +444,278 @@ void fibonacci(size_t W) {
   REQUIRE(res == 6765);
 }
 
-TEST_CASE("FibSubflow.1thread") {
+TEST_CASE("FibSubflow.1thread" * doctest::timeout(300)) {
   fibonacci(1);
 }
 
-TEST_CASE("FibSubflow.2threads") {
+TEST_CASE("FibSubflow.2threads" * doctest::timeout(300)) {
   fibonacci(2);
 }
 
-TEST_CASE("FibSubflow.4threads") {
+TEST_CASE("FibSubflow.4threads" * doctest::timeout(300)) {
   fibonacci(4);
 }
 
-TEST_CASE("FibSubflow.5threads") {
+TEST_CASE("FibSubflow.5threads" * doctest::timeout(300)) {
   fibonacci(5);
 }
 
-TEST_CASE("FibSubflow.6threads") {
+TEST_CASE("FibSubflow.6threads" * doctest::timeout(300)) {
   fibonacci(6);
 }
 
-TEST_CASE("FibSubflow.7threads") {
+TEST_CASE("FibSubflow.7threads" * doctest::timeout(300)) {
   fibonacci(7);
 }
 
-TEST_CASE("FibSubflow.8threads") {
+TEST_CASE("FibSubflow.8threads" * doctest::timeout(300)) {
   fibonacci(8);
+}
+
+// ----------------------------------------------------------------------------
+// multiple subflow runs
+// ----------------------------------------------------------------------------
+void multiple_subflow_runs(unsigned W) {
+
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+
+  std::atomic<size_t> count {0};
+
+  auto A = taskflow.emplace([&](){ count ++; });
+  auto B = taskflow.emplace([&](tf::Subflow& subflow){
+    count ++;
+    auto B1 = subflow.emplace([&](){ count++; });
+    auto B2 = subflow.emplace([&](){ count++; });
+    auto B3 = subflow.emplace([&](){ count++; });
+    B1.precede(B3); B2.precede(B3);
+  });
+  auto C = taskflow.emplace([&](){ count ++; });
+  auto D = taskflow.emplace([&](){ count ++; });
+
+  A.precede(B, C);
+  B.precede(D);
+  C.precede(D);
+
+  std::list<tf::Future<void>> fu_list;
+  for(size_t i=0; i<500; i++) {
+    if(i == 499) {
+      executor.run(taskflow).get();   // Synchronize the first 500 runs
+      executor.run_n(taskflow, 500);  // Run 500 times more
+    }
+    else if(i % 2) {
+      fu_list.push_back(executor.run(taskflow));
+    }
+    else {
+      fu_list.push_back(executor.run(taskflow, [&, i=i](){
+        REQUIRE(count == (i+1)*7); })
+      );
+    }
+  }
+
+  executor.wait_for_all();
+
+  for(auto& fu: fu_list) {
+    REQUIRE(fu.valid());
+    REQUIRE(fu.wait_for(std::chrono::seconds(1)) == std::future_status::ready);
+  }
+
+  REQUIRE(count == 7000);
+}
+
+TEST_CASE("MultipleSubflowRuns.1thread" * doctest::timeout(300)) {
+  multiple_subflow_runs(1);
+}
+
+TEST_CASE("MultipleSubflowRuns.2threads" * doctest::timeout(300)) {
+  multiple_subflow_runs(2);
+}
+
+TEST_CASE("MultipleSubflowRuns.3threads" * doctest::timeout(300)) {
+  multiple_subflow_runs(3);
+}
+
+TEST_CASE("MultipleSubflowRuns.4threads" * doctest::timeout(300)) {
+  multiple_subflow_runs(4);
+}
+
+TEST_CASE("MultipleSubflowRuns.4threads" * doctest::timeout(300)) {
+  multiple_subflow_runs(4);
+}
+
+TEST_CASE("MultipleSubflowRuns.5threads" * doctest::timeout(300)) {
+  multiple_subflow_runs(5);
+}
+
+TEST_CASE("MultipleSubflowRuns.6threads" * doctest::timeout(300)) {
+  multiple_subflow_runs(6);
+}
+
+TEST_CASE("MultipleSubflowRuns.7threads" * doctest::timeout(300)) {
+  multiple_subflow_runs(7);
+}
+
+TEST_CASE("MultipleSubflowRuns.8threads" * doctest::timeout(300)) {
+  multiple_subflow_runs(8);
+}
+
+// ----------------------------------------------------------------------------
+// Multiple subflow runs with change
+// ----------------------------------------------------------------------------
+
+void multiple_subflow_runs_with_changed_taskflow(unsigned W) {
+
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+
+  std::atomic<size_t> count {0};
+
+  auto A = taskflow.emplace([&](){ count ++; });
+  auto B = taskflow.emplace([&](tf::Subflow& subflow){
+    count ++;
+    auto B1 = subflow.emplace([&](){ count++; });
+    auto B2 = subflow.emplace([&](){ count++; });
+    auto B3 = subflow.emplace([&](){ count++; });
+    B1.precede(B3); B2.precede(B3);
+  });
+  auto C = taskflow.emplace([&](){ count ++; });
+  auto D = taskflow.emplace([&](){ count ++; });
+
+  A.precede(B, C);
+  B.precede(D);
+  C.precede(D);
+
+  executor.run_n(taskflow, 10).get();
+  REQUIRE(count == 70);
+
+  auto E = taskflow.emplace([](){});
+  D.precede(E);
+  executor.run_n(taskflow, 10).get();
+  REQUIRE(count == 140);
+
+  auto F = taskflow.emplace([](){});
+  E.precede(F);
+  executor.run_n(taskflow, 10);
+  executor.wait_for_all();
+  REQUIRE(count == 210);
+
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.1thread" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(1);
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.2threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(2);
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.3threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(3);
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.4threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(4);
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.4threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(4);
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.5threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(5);
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.6threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(6);
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.7threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(7);
+}
+
+TEST_CASE("MultipleSubflowRuns.ChangedTaskflow.8threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_changed_taskflow(8);
+}
+
+// ----------------------------------------------------------------------------
+// multiple_subflow_runs_with_predicate
+// ----------------------------------------------------------------------------
+
+void multiple_subflow_runs_with_predicate(unsigned W) {
+
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+  
+  std::atomic<size_t> count {0};
+  auto A = taskflow.emplace([&](){ count ++; });
+  auto B = taskflow.emplace([&](tf::Subflow& subflow){
+    count ++;
+    auto B1 = subflow.emplace([&](){ count++; });
+    auto B2 = subflow.emplace([&](){ count++; });
+    auto B3 = subflow.emplace([&](){ count++; });
+    B1.precede(B3); B2.precede(B3);
+  });
+  auto C = taskflow.emplace([&](){ count ++; });
+  auto D = taskflow.emplace([&](){ count ++; });
+
+  A.precede(B, C);
+  B.precede(D);
+  C.precede(D);
+
+  executor.run_until(taskflow, [run=10]() mutable { return run-- == 0; },
+    [&](){
+      REQUIRE(count == 70);
+      count = 0;
+    }
+  ).get();
+
+
+  executor.run_until(taskflow, [run=10]() mutable { return run-- == 0; },
+    [&](){
+      REQUIRE(count == 70);
+      count = 0;
+  });
+
+  executor.run_until(taskflow, [run=10]() mutable { return run-- == 0; },
+    [&](){
+      REQUIRE(count == 70);
+      count = 0;
+    }
+  ).get();
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.1thread" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(1);
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.2threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(2);
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.3threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(3);
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.4threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(4);
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.4threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(4);
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.5threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(5);
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.6threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(6);
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.7threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(7);
+}
+
+TEST_CASE("MultipleSubflowRuns.Predicate.8threads" * doctest::timeout(300)) {
+  multiple_subflow_runs_with_predicate(8);
 }

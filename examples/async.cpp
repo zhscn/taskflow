@@ -18,13 +18,12 @@ int main() {
   });
 
   // create async tasks with runtime
-  std::future<int> fu2 = executor.async([](tf::Runtime& rt){
-    std::cout << "async task with a runtime: " << &rt << "\n";
-    return 1;
+  std::future<void> fu2 = executor.async([](tf::Runtime& rt){
+    printf("async task with a runtime: %p\n", &rt);
   });
 
   executor.silent_async([](tf::Runtime& rt){
-    std::cout << "silent async task with a runtime: " << &rt << "\n";
+    printf("silent async task with a runtime: %p\n", &rt);
   });
 
   executor.wait_for_all();  // wait for the two async tasks to finish
@@ -35,15 +34,15 @@ int main() {
 
   std::atomic<int> counter {0};
 
-  taskflow.emplace([&](tf::Subflow& sf){
+  taskflow.emplace([&](tf::Runtime& rt){
     for(int i=0; i<100; i++) {
-      sf.silent_async([&](){ counter.fetch_add(1, std::memory_order_relaxed); });
+      rt.silent_async([&](){ counter.fetch_add(1, std::memory_order_relaxed); });
     }
-    sf.join();
+    rt.corun_all();
 
     // when subflow joins, all spawned tasks from the subflow will finish
     if(counter == 100) {
-      std::cout << "async tasks spawned from the subflow all finish\n";
+      std::cout << "async tasks spawned from the runtime all finish\n";
     }
     else {
       throw std::runtime_error("this should not happen");
@@ -51,14 +50,9 @@ int main() {
   });
 
   executor.run(taskflow).wait();
-
+  
   return 0;
 }
-
-
-
-
-
 
 
 
