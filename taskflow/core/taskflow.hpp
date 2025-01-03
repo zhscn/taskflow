@@ -69,6 +69,7 @@ class Taskflow : public FlowBuilder {
   friend class Topology;
   friend class Executor;
   friend class FlowBuilder;
+  friend class Subflow;
 
   struct Dumper {
     size_t id;
@@ -337,7 +338,7 @@ inline Taskflow& Taskflow::operator = (Taskflow&& rhs) {
 
 // Procedure:
 inline void Taskflow::clear() {
-  _graph._clear();
+  _graph.clear();
 }
 
 // Function: num_tasks
@@ -368,8 +369,8 @@ inline Graph& Taskflow::graph() {
 // Function: for_each_task
 template <typename V>
 void Taskflow::for_each_task(V&& visitor) const {
-  for(size_t i=0; i<_graph._nodes.size(); ++i) {
-    visitor(Task(_graph._nodes[i]));
+  for(auto itr = _graph.begin(); itr != _graph.end(); ++itr) {
+    visitor(Task(itr->get()));
   }
 }
 
@@ -441,12 +442,13 @@ inline void Taskflow::_dump(
   std::ostream& os, const Node* node, Dumper& dumper
 ) const {
 
+  // label of the node
   os << 'p' << node << "[label=\"";
   if(node->_name.empty()) os << 'p' << node;
   else os << node->_name;
   os << "\" ";
 
-  // shape for node
+  // shape of the node
   switch(node->_handle.index()) {
 
     case Node::CONDITION:
@@ -474,7 +476,7 @@ inline void Taskflow::_dump(
   if(node->_parent && node->_parent->_handle.index() == Node::SUBFLOW &&
      node->_successors.size() == 0
     ) {
-    os << 'p' << node << " -> p" << node->_parent << ";\n";
+    os << 'p' << node << " -> p" << node->_parent << " [style=dashed color=blue];\n";
   }
 
   // node info
@@ -504,7 +506,9 @@ inline void Taskflow::_dump(
   std::ostream& os, const Graph* graph, Dumper& dumper
 ) const {
 
-  for(const auto& n : graph->_nodes) {
+  for(auto itr = graph->begin(); itr != graph->end(); ++itr) {
+
+    Node* n = itr->get();
 
     // regular task
     if(n->_handle.index() != Node::MODULE) {
@@ -635,7 +639,7 @@ Future<T>::Future(std::future<T>&& f, std::weak_ptr<Topology> p) :
 template <typename T>
 bool Future<T>::cancel() {
   if(auto ptr = _topology.lock(); ptr) {
-    ptr->_state.fetch_or(Topology::CANCELLED, std::memory_order_relaxed);
+    ptr->_estate.fetch_or(ESTATE::CANCELLED, std::memory_order_relaxed);
     return true;
   }
   return false;

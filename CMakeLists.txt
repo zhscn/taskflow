@@ -19,7 +19,7 @@ cmake_minimum_required (VERSION 3.18)
 MESSAGE(STATUS "CMAKE_ROOT: " ${CMAKE_ROOT})
 
 # Project name
-project(Taskflow VERSION 3.8.0 LANGUAGES CXX)
+project(Taskflow VERSION 3.9.0 LANGUAGES CXX)
 
 # build options
 option(TF_BUILD_BENCHMARKS "Enables builds of benchmarks" OFF)
@@ -293,9 +293,6 @@ include_directories(${PROJECT_SOURCE_DIR})
 # must-have package include
 # -----------------------------------------------------------------------------
 
-# Enable test
-include(CTest)
-
 # Find pthread package
 find_package(Threads REQUIRED)
 
@@ -322,6 +319,7 @@ endif(TF_BUILD_EXAMPLES)
 # Unittest
 # -----------------------------------------------------------------------------
 if(TF_BUILD_TESTS)
+  include(CTest)
   add_subdirectory(unittests)
 endif(TF_BUILD_TESTS)
 

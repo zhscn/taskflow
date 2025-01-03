@@ -18,17 +18,13 @@ TEST_CASE("Type" * doctest::timeout(300)) {
   auto t4 = taskflow.composed_of(taskflow2);
   auto t5 = taskflow.emplace([](){ return tf::SmallVector{1, 2}; });
   auto t6 = taskflow.emplace([](tf::Runtime&){});
-  auto t7 = taskflow.emplace([](tf::Runtime&){ return 1; });
-  auto t8 = taskflow.emplace([](tf::Runtime&){ return tf::SmallVector{1, 2}; });
 
   REQUIRE(t1.type() == tf::TaskType::STATIC);
   REQUIRE(t2.type() == tf::TaskType::CONDITION);
   REQUIRE(t3.type() == tf::TaskType::SUBFLOW);
   REQUIRE(t4.type() == tf::TaskType::MODULE);
   REQUIRE(t5.type() == tf::TaskType::CONDITION);
-  REQUIRE(t6.type() == tf::TaskType::STATIC);
-  REQUIRE(t7.type() == tf::TaskType::CONDITION);
-  REQUIRE(t8.type() == tf::TaskType::CONDITION);
+  REQUIRE(t6.type() == tf::TaskType::RUNTIME);
 }
 
 // --------------------------------------------------------
@@ -569,127 +565,6 @@ void sequential_runs(unsigned W) {
     executor.run(taskflow);
     executor.wait_for_all();
     REQUIRE(counter == num_tasks);
-  }
-
-  SUBCASE("RunWithFuture") {
-
-    std::atomic<size_t> count {0};
-    tf::Taskflow f;
-    auto A = f.emplace([&](){ count ++; });
-    auto B = f.emplace([&](tf::Subflow& subflow){
-      count ++;
-      auto B1 = subflow.emplace([&](){ count++; });
-      auto B2 = subflow.emplace([&](){ count++; });
-      auto B3 = subflow.emplace([&](){ count++; });
-      B1.precede(B3); B2.precede(B3);
-    });
-    auto C = f.emplace([&](){ count ++; });
-    auto D = f.emplace([&](){ count ++; });
-
-    A.precede(B, C);
-    B.precede(D);
-    C.precede(D);
-
-    std::list<tf::Future<void>> fu_list;
-    for(size_t i=0; i<500; i++) {
-      if(i == 499) {
-        executor.run(f).get();   // Synchronize the first 500 runs
-        executor.run_n(f, 500);  // Run 500 times more
-      }
-      else if(i % 2) {
-        fu_list.push_back(executor.run(f));
-      }
-      else {
-        fu_list.push_back(executor.run(f, [&, i=i](){
-          REQUIRE(count == (i+1)*7); })
-        );
-      }
-    }
-
-    executor.wait_for_all();
-
-    for(auto& fu: fu_list) {
-      REQUIRE(fu.valid());
-      REQUIRE(fu.wait_for(std::chrono::seconds(1)) == std::future_status::ready);
-    }
-
-    REQUIRE(count == 7000);
-
-  }
-
-  SUBCASE("RunWithChange") {
-    std::atomic<size_t> count {0};
-    tf::Taskflow f;
-    auto A = f.emplace([&](){ count ++; });
-    auto B = f.emplace([&](tf::Subflow& subflow){
-      count ++;
-      auto B1 = subflow.emplace([&](){ count++; });
-      auto B2 = subflow.emplace([&](){ count++; });
-      auto B3 = subflow.emplace([&](){ count++; });
-      B1.precede(B3); B2.precede(B3);
-    });
-    auto C = f.emplace([&](){ count ++; });
-    auto D = f.emplace([&](){ count ++; });
-
-    A.precede(B, C);
-    B.precede(D);
-    C.precede(D);
-
-    executor.run_n(f, 10).get();
-    REQUIRE(count == 70);
-
-    auto E = f.emplace([](){});
-    D.precede(E);
-    executor.run_n(f, 10).get();
-    REQUIRE(count == 140);
-
-    auto F = f.emplace([](){});
-    E.precede(F);
-    executor.run_n(f, 10);
-    executor.wait_for_all();
-    REQUIRE(count == 210);
-
-  }
-
-  SUBCASE("RunWithPred") {
-    std::atomic<size_t> count {0};
-    tf::Taskflow f;
-    auto A = f.emplace([&](){ count ++; });
-    auto B = f.emplace([&](tf::Subflow& subflow){
-      count ++;
-      auto B1 = subflow.emplace([&](){ count++; });
-      auto B2 = subflow.emplace([&](){ count++; });
-      auto B3 = subflow.emplace([&](){ count++; });
-      B1.precede(B3); B2.precede(B3);
-    });
-    auto C = f.emplace([&](){ count ++; });
-    auto D = f.emplace([&](){ count ++; });
-
-    A.precede(B, C);
-    B.precede(D);
-    C.precede(D);
-
-    executor.run_until(f, [run=10]() mutable { return run-- == 0; },
-      [&](){
-        REQUIRE(count == 70);
-        count = 0;
-      }
-    ).get();
-
-
-    executor.run_until(f, [run=10]() mutable { return run-- == 0; },
-      [&](){
-        REQUIRE(count == 70);
-        count = 0;
-    });
-
-    executor.run_until(f, [run=10]() mutable { return run-- == 0; },
-      [&](){
-        REQUIRE(count == 70);
-        count = 0;
-      }
-    ).get();
-
   }
 
   SUBCASE("MultipleRuns") {

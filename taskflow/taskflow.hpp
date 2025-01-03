@@ -7,29 +7,10 @@
 // + TF_ENABLE_ATOMIC_NOTIFIER : enable atomic notifier (required C++20)
 //
 
-#ifndef TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE 
-/**
-@def TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE
-
-This macro defines the default size of the bounded task queue in Log2. 
-Bounded task queue is used by each worker.
-*/
-  #define TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE 8
-#endif
-
-#ifndef TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE 
-/**
-@def TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE
-
-This macro defines the default size of the unbounded task queue in Log2.
-Unbounded task queue is used by the executor.
-*/
-  #define TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE 10
-#endif
-
-
 #include "core/executor.hpp"
+#include "core/runtime.hpp"
 #include "core/async.hpp"
+#include "algorithm/algorithm.hpp"
 
 /**
 @dir taskflow
@@ -61,7 +42,7 @@ Unbounded task queue is used by the executor.
 /**
 @def TF_VERSION 
 
-@brief version of the %Taskflow (currently 3.8.0)
+@brief version of the %Taskflow (currently 3.9.0)
 
 The version system is made of a major version number, a minor version number,
 and a patch number:
@@ -69,7 +50,7 @@ and a patch number:
   + TF_VERSION / 100 % 1000 is the minor version
   + TF_VERSION / 100000 is the major version
 */
-#define TF_VERSION 300800
+#define TF_VERSION 300900
 
 /**
 @def TF_MAJOR_VERSION
@@ -111,7 +92,7 @@ namespace detail { }
 Release notes are available here: https://taskflow.github.io/taskflow/Releases.html
 */
 constexpr const char* version() {
-  return "3.8.0";
+  return "3.9.0";
 }
 
 

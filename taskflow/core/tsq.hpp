@@ -8,6 +8,26 @@
 @brief task queue include file
 */
 
+#ifndef TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE 
+  /**
+  @def TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE
+  
+  This macro defines the default size of the bounded task queue in Log2. 
+  Bounded task queue is used by each worker.
+  */
+  #define TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE 8
+#endif
+
+#ifndef TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE 
+  /**
+  @def TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE
+  
+  This macro defines the default size of the unbounded task queue in Log2.
+  Unbounded task queue is used by the executor.
+  */
+  #define TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE 10
+#endif
+
 namespace tf {
 
 // ----------------------------------------------------------------------------
@@ -20,7 +40,7 @@ namespace tf {
 
 @tparam T data type (must be a pointer type)
 
-@brief class to create a lock-free unbounded single-producer multiple-consumer queue
+@brief class to create a lock-free unbounded work-stealing queue
 
 This class implements the work-stealing queue described in the paper,
 <a href="https://www.di.ens.fr/~zappa/readings/ppopp13.pdf">Correct and Efficient Work-Stealing for Weak Memory Models</a>.
@@ -189,7 +209,9 @@ void UnboundedTaskQueue<T>::push(T o) {
 
   a->push(b, o);
   std::atomic_thread_fence(std::memory_order_release);
-  _bottom.store(b + 1, std::memory_order_relaxed);
+
+  // original paper uses relaxed here but tsa complains
+  _bottom.store(b + 1, std::memory_order_release);
 }
 
 // Function: pop
@@ -275,7 +297,7 @@ UnboundedTaskQueue<T>::resize_array(Array* a, int64_t b, int64_t t) {
 @tparam T data type
 @tparam LogSize the base-2 logarithm of the queue size
 
-@brief class to create a lock-free bounded single-producer multiple-consumer queue
+@brief class to create a lock-free bounded work-stealing queue
 
 This class implements the work-stealing queue described in the paper, 
 "Correct and Efficient Work-Stealing for Weak Memory Models,"
@@ -401,7 +423,9 @@ bool BoundedTaskQueue<T, LogSize>::try_push(O&& o) {
   _buffer[b & BufferMask].store(std::forward<O>(o), std::memory_order_relaxed);
 
   std::atomic_thread_fence(std::memory_order_release);
-  _bottom.store(b + 1, std::memory_order_relaxed);
+  
+  // original paper uses relaxed here but tsa complains
+  _bottom.store(b + 1, std::memory_order_release);
 
   return true;
 }
@@ -423,7 +447,9 @@ void BoundedTaskQueue<T, LogSize>::push(O&& o, C&& on_full) {
   _buffer[b & BufferMask].store(std::forward<O>(o), std::memory_order_relaxed);
 
   std::atomic_thread_fence(std::memory_order_release);
-  _bottom.store(b + 1, std::memory_order_relaxed);
+  
+  // original paper uses relaxed here but tsa complains
+  _bottom.store(b + 1, std::memory_order_release);
 }
 
 // Function: pop
@@ -483,6 +509,218 @@ constexpr size_t BoundedTaskQueue<T, LogSize>::capacity() const {
   return static_cast<size_t>(BufferSize - 1);
 }
 
+
+
+//-----------------------------------------------------------------------------
+
+//template <typename T>
+//class UnboundedTaskQueue2 {
+//  
+//  static_assert(std::is_pointer_v<T>, "T must be a pointer type");
+//
+//  struct Array {
+//
+//    int64_t C;
+//    int64_t M;
+//    std::atomic<T>* S;
+//
+//    explicit Array(int64_t c) :
+//      C {c},
+//      M {c-1},
+//      S {new std::atomic<T>[static_cast<size_t>(C)]} {
+//    }
+//
+//    ~Array() {
+//      delete [] S;
+//    }
+//
+//    int64_t capacity() const noexcept {
+//      return C;
+//    }
+//
+//    void push(int64_t i, T o) noexcept {
+//      S[i & M].store(o, std::memory_order_relaxed);
+//    }
+//
+//    T pop(int64_t i) noexcept {
+//      return S[i & M].load(std::memory_order_relaxed);
+//    }
+//
+//    Array* resize(int64_t b, int64_t t) {
+//      Array* ptr = new Array {2*C};
+//      for(int64_t i=t; i!=b; ++i) {
+//        ptr->push(i, pop(i));
+//      }
+//      return ptr;
+//    }
+//
+//  };
+//
+//  // Doubling the alignment by 2 seems to generate the most
+//  // decent performance.
+//  alignas(2*TF_CACHELINE_SIZE) std::atomic<int64_t> _top;
+//  alignas(2*TF_CACHELINE_SIZE) std::atomic<int64_t> _bottom;
+//  std::atomic<Array*> _array;
+//  std::vector<Array*> _garbage;
+//
+//  static constexpr int64_t BOTTOM_LOCK = std::numeric_limits<int64_t>::min();
+//  static constexpr int64_t BOTTOM_MASK = std::numeric_limits<int64_t>::max();
+//
+//  public:
+//
+//  /**
+//  @brief constructs the queue with the given size in the base-2 logarithm
+//
+//  @param LogSize the base-2 logarithm of the queue size
+//  */
+//  explicit UnboundedTaskQueue2(int64_t LogSize = TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE);
+//
+//  /**
+//  @brief destructs the queue
+//  */
+//  ~UnboundedTaskQueue2();
+//
+//  /**
+//  @brief queries if the queue is empty at the time of this call
+//  */
+//  bool empty() const noexcept;
+//
+//  /**
+//  @brief queries the number of items at the time of this call
+//  */
+//  size_t size() const noexcept;
+//
+//  /**
+//  @brief queries the capacity of the queue
+//  */
+//  int64_t capacity() const noexcept;
+//  
+//  /**
+//  @brief inserts an item to the queue
+//
+//  @param item the item to push to the queue
+//  
+//  Only the owner thread can insert an item to the queue.
+//  The operation can trigger the queue to resize its capacity
+//  if more space is required.
+//  */
+//  void push(T item);
+//
+//  /**
+//  @brief steals an item from the queue
+//
+//  Any threads can try to steal an item from the queue.
+//  The return can be a @c nullptr if this operation failed (not necessary empty).
+//  */
+//  T steal();
+//
+//  private:
+//
+//  Array* resize_array(Array* a, int64_t b, int64_t t);
+//};
+//
+//// Constructor
+//template <typename T>
+//UnboundedTaskQueue2<T>::UnboundedTaskQueue2(int64_t LogSize) {
+//  _top.store(0, std::memory_order_relaxed);
+//  _bottom.store(0, std::memory_order_relaxed);
+//  _array.store(new Array{(int64_t{1} << LogSize)}, std::memory_order_relaxed);
+//  _garbage.reserve(32);
+//}
+//
+//// Destructor
+//template <typename T>
+//UnboundedTaskQueue2<T>::~UnboundedTaskQueue2() {
+//  for(auto a : _garbage) {
+//    delete a;
+//  }
+//  delete _array.load();
+//}
+//
+//// Function: empty
+//template <typename T>
+//bool UnboundedTaskQueue2<T>::empty() const noexcept {
+//  int64_t b = _bottom.load(std::memory_order_relaxed) & BOTTOM_MASK;
+//  int64_t t = _top.load(std::memory_order_relaxed);
+//  return (b <= t);
+//}
+//
+//// Function: size
+//template <typename T>
+//size_t UnboundedTaskQueue2<T>::size() const noexcept {
+//  int64_t b = _bottom.load(std::memory_order_relaxed) & BOTTOM_MASK;
+//  int64_t t = _top.load(std::memory_order_relaxed);
+//  return static_cast<size_t>(b >= t ? b - t : 0);
+//}
+//
+//// Function: push
+//template <typename T>
+//void UnboundedTaskQueue2<T>::push(T o) {
+//  
+//  // spin until getting an exclusive access to b
+//  int64_t b = _bottom.load(std::memory_order_acquire) & BOTTOM_MASK;
+//  while(!_bottom.compare_exchange_weak(b, b | BOTTOM_LOCK, std::memory_order_acquire,
+//                                                           std::memory_order_relaxed)) {
+//    b = b & BOTTOM_MASK;
+//  }
+//
+//  // critical region
+//  int64_t t = _top.load(std::memory_order_acquire);
+//  Array* a = _array.load(std::memory_order_relaxed);
+//
+//  // queue is full
+//  if TF_UNLIKELY(a->capacity() - 1 < (b - t)) {
+//    a = resize_array(a, b, t);
+//  }
+//
+//  a->push(b, o);
+//  std::atomic_thread_fence(std::memory_order_release);
+//
+//  // original paper uses relaxed here but tsa complains
+//  _bottom.store(b + 1, std::memory_order_release);
+//}
+//
+//// Function: steal
+//template <typename T>
+//T UnboundedTaskQueue2<T>::steal() {
+//  
+//  int64_t t = _top.load(std::memory_order_acquire);
+//  std::atomic_thread_fence(std::memory_order_seq_cst);
+//  int64_t b = _bottom.load(std::memory_order_acquire) & BOTTOM_MASK;
+//
+//  T item {nullptr};
+//
+//  if(t < b) {
+//    Array* a = _array.load(std::memory_order_consume);
+//    item = a->pop(t);
+//    if(!_top.compare_exchange_strong(t, t+1,
+//                                     std::memory_order_seq_cst,
+//                                     std::memory_order_relaxed)) {
+//      return nullptr;
+//    }
+//  }
+//
+//  return item;
+//}
+//
+//// Function: capacity
+//template <typename T>
+//int64_t UnboundedTaskQueue2<T>::capacity() const noexcept {
+//  return _array.load(std::memory_order_relaxed)->capacity();
+//}
+//
+//template <typename T>
+//typename UnboundedTaskQueue2<T>::Array*
+//UnboundedTaskQueue2<T>::resize_array(Array* a, int64_t b, int64_t t) {
+//
+//  Array* tmp = a->resize(b, t);
+//  _garbage.push_back(a);
+//  std::swap(a, tmp);
+//  _array.store(a, std::memory_order_release);
+//  // Note: the original paper using relaxed causes t-san to complain
+//  //_array.store(a, std::memory_order_relaxed);
+//  return a;
+//}
 
 }  // end of namespace tf -----------------------------------------------------
 

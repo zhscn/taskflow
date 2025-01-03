@@ -47,35 +47,35 @@ void ps_pod(size_t W, size_t N) {
   REQUIRE(std::is_sorted(data.begin(), data.end()));
 }
 
-TEST_CASE("ParallelSort.int.1.100000") {
+TEST_CASE("ParallelSort.int.1.100000" * doctest::timeout(300)) {
   ps_pod<int>(1, 100000);
 }
 
-TEST_CASE("ParallelSort.int.2.100000") {
+TEST_CASE("ParallelSort.int.2.100000" * doctest::timeout(300)) {
   ps_pod<int>(2, 100000);
 }
 
-TEST_CASE("ParallelSort.int.3.100000") {
+TEST_CASE("ParallelSort.int.3.100000" * doctest::timeout(300)) {
   ps_pod<int>(3, 100000);
 }
 
-TEST_CASE("ParallelSort.int.4.100000") {
+TEST_CASE("ParallelSort.int.4.100000" * doctest::timeout(300)) {
   ps_pod<int>(4, 100000);
 }
 
-TEST_CASE("ParallelSort.ldouble.1.100000") {
+TEST_CASE("ParallelSort.ldouble.1.100000" * doctest::timeout(300)) {
   ps_pod<long double>(1, 100000);
 }
 
-TEST_CASE("ParallelSort.ldouble.2.100000") {
+TEST_CASE("ParallelSort.ldouble.2.100000" * doctest::timeout(300)) {
   ps_pod<long double>(2, 100000);
 }
 
-TEST_CASE("ParallelSort.ldouble.3.100000") {
+TEST_CASE("ParallelSort.ldouble.3.100000" * doctest::timeout(300)) {
   ps_pod<long double>(3, 100000);
 }
 
-TEST_CASE("ParallelSort.ldouble.4.100000") {
+TEST_CASE("ParallelSort.ldouble.4.100000" * doctest::timeout(300)) {
   ps_pod<long double>(4, 100000);
 }
 
@@ -118,19 +118,19 @@ void ps_object(size_t W, size_t N) {
   ));
 }
 
-TEST_CASE("ParallelSort.object.1.100000") {
+TEST_CASE("ParallelSort.object.1.100000" * doctest::timeout(300)) {
   ps_object(1, 100000);
 }
 
-TEST_CASE("ParallelSort.object.2.100000") {
+TEST_CASE("ParallelSort.object.2.100000" * doctest::timeout(300)) {
   ps_object(2, 100000);
 }
 
-TEST_CASE("ParallelSort.object.3.100000") {
+TEST_CASE("ParallelSort.object.3.100000" * doctest::timeout(300)) {
   ps_object(3, 100000);
 }
 
-TEST_CASE("ParallelSort.object.4.100000") {
+TEST_CASE("ParallelSort.object.4.100000" * doctest::timeout(300)) {
   ps_object(4, 100000);
 }
 
@@ -158,93 +158,291 @@ void move_only_ps(unsigned W) {
 
 }
 
-TEST_CASE("ParallelSort.MoveOnlyObject.1thread") {
+TEST_CASE("ParallelSort.MoveOnlyObject.1thread" * doctest::timeout(300)) {
   move_only_ps(1);
 }
 
-TEST_CASE("ParallelSort.MoveOnlyObject.2threads") {
+TEST_CASE("ParallelSort.MoveOnlyObject.2threads" * doctest::timeout(300)) {
   move_only_ps(2);
 }
 
-TEST_CASE("ParallelSort.MoveOnlyObject.3threads") {
+TEST_CASE("ParallelSort.MoveOnlyObject.3threads" * doctest::timeout(300)) {
   move_only_ps(3);
 }
 
-TEST_CASE("ParallelSort.MoveOnlyObject.4threads") {
+TEST_CASE("ParallelSort.MoveOnlyObject.4threads" * doctest::timeout(300)) {
   move_only_ps(4);
 }
+
+// ----------------------------------------------------------------------------
+// Parallel Sort with  Async Tasks
+// ----------------------------------------------------------------------------
+
+void async(size_t W) {
+
+  std::srand(static_cast<unsigned int>(time(NULL)));
+  
+  tf::Executor executor(W);
+  std::vector<int> data;
+
+  for(size_t n=0; n < 100000; n = (n ? n*10 : 1)) {
+    
+    data.resize(n);
+
+    for(auto& d : data) {
+      d = ::rand() % 1000 - 500;
+    }
+  
+    executor.async(tf::make_sort_task(data.begin(), data.end()));
+    executor.wait_for_all();
+    REQUIRE(std::is_sorted(data.begin(), data.end()));
+  }
+}
+
+TEST_CASE("ParallelSort.Async.1thread" * doctest::timeout(300)) {
+  async(1);
+}
+
+TEST_CASE("ParallelSort.Async.2threads" * doctest::timeout(300)) {
+  async(2);
+}
+
+TEST_CASE("ParallelSort.Async.3threads" * doctest::timeout(300)) {
+  async(3);
+}
+
+TEST_CASE("ParallelSort.Async.4threads" * doctest::timeout(300)) {
+  async(4);
+}
+
+// ----------------------------------------------------------------------------
+// Parallel Sort with Dependent Async Tasks
+// ----------------------------------------------------------------------------
+
+void dependent_async(size_t W) {
+
+  std::srand(static_cast<unsigned int>(time(NULL)));
+  
+  tf::Executor executor(W);
+  std::vector<int> data;
+
+  for(size_t n=0; n < 100000; n = (n ? n*10 : 1)) {
+    
+    data.resize(n);
+
+    for(auto& d : data) {
+      d = ::rand() % 1000 - 500;
+    }
+  
+    executor.dependent_async(tf::make_sort_task(data.begin(), data.end()));
+    executor.wait_for_all();
+    REQUIRE(std::is_sorted(data.begin(), data.end()));
+  }
+}
+
+TEST_CASE("ParallelSort.DependentAsync.1thread" * doctest::timeout(300)) {
+  dependent_async(1);
+}
+
+TEST_CASE("ParallelSort.DependentAsync.2threads" * doctest::timeout(300)) {
+  dependent_async(2);
+}
+
+TEST_CASE("ParallelSort.DependentAsync.3threads" * doctest::timeout(300)) {
+  dependent_async(3);
+}
+
+TEST_CASE("ParallelSort.DependentAsync.4threads" * doctest::timeout(300)) {
+  dependent_async(4);
+}
+
+// ----------------------------------------------------------------------------
+// Parallel Sort with Silent Async Tasks
+// ----------------------------------------------------------------------------
+
+void silent_async(size_t W) {
+
+  std::srand(static_cast<unsigned int>(time(NULL)));
+  
+  tf::Executor executor(W);
+  std::vector<int> data;
+
+  for(size_t n=0; n < 100000; n = (n ? n*10 : 1)) {
+    
+    data.resize(n);
+
+    for(auto& d : data) {
+      d = ::rand() % 1000 - 500;
+    }
+  
+    executor.silent_async(tf::make_sort_task(data.begin(), data.end()));
+    executor.wait_for_all();
+    REQUIRE(std::is_sorted(data.begin(), data.end()));
+  }
+}
+
+TEST_CASE("ParallelSort.SilentAsync.1thread" * doctest::timeout(300)) {
+  silent_async(1);
+}
+
+TEST_CASE("ParallelSort.SilentAsync.2threads" * doctest::timeout(300)) {
+  silent_async(2);
+}
+
+TEST_CASE("ParallelSort.SilentAsync.3threads" * doctest::timeout(300)) {
+  silent_async(3);
+}
+
+TEST_CASE("ParallelSort.SilentAsync.4threads" * doctest::timeout(300)) {
+  silent_async(4);
+}
+
+// ----------------------------------------------------------------------------
+// Parallel Sort with Silent Dependent Async Tasks
+// ----------------------------------------------------------------------------
+
+void silent_dependent_async(size_t W) {
+
+  std::srand(static_cast<unsigned int>(time(NULL)));
+  
+  tf::Executor executor(W);
+  std::vector<int> data;
+
+  for(size_t n=0; n < 100000; n = (n ? n*10 : 1)) {
+    
+    data.resize(n);
+
+    for(auto& d : data) {
+      d = ::rand() % 1000 - 500;
+    }
+  
+    executor.silent_dependent_async(tf::make_sort_task(data.begin(), data.end()));
+    executor.wait_for_all();
+    REQUIRE(std::is_sorted(data.begin(), data.end()));
+  }
+}
+
+TEST_CASE("ParallelSort.SilentDependentAsync.1thread" * doctest::timeout(300)) {
+  silent_dependent_async(1);
+}
+
+TEST_CASE("ParallelSort.SilentDependentAsync.2threads" * doctest::timeout(300)) {
+  silent_dependent_async(2);
+}
+
+TEST_CASE("ParallelSort.SilentDependentAsync.3threads" * doctest::timeout(300)) {
+  silent_dependent_async(3);
+}
+
+TEST_CASE("ParallelSort.SilentDependentAsync.4threads" * doctest::timeout(300)) {
+  silent_dependent_async(4);
+}
+
 
 // --------------------------------------------------------
 // Testcase: BubbleSort
 // --------------------------------------------------------
-TEST_CASE("BubbleSort" * doctest::timeout(300)) {
+void bubble_sort(unsigned W) {
 
-  for(unsigned w=1; w<=9; w+=2) {
-
-    tf::Executor executor(w);
-
-    for(int end=10; end <= 1000; end += 200) {
-
-      tf::Taskflow taskflow("BubbleSort");
-
-      std::vector<int> data(end);
-
-      for(auto& d : data) d = ::rand()%100;
-
-      auto gold = data;
-      std::sort(gold.begin(), gold.end());
-
-      std::atomic<bool>swapped;
-
-      // init task
-      auto init = taskflow.emplace([&swapped](){ swapped = false; });
-      auto cond = taskflow.emplace([&swapped](){
-        if(swapped) {
-          swapped = false;
-          return 0;
-        }
-        return 1;
-      });
-      auto stop = taskflow.emplace([](){});
-
-      auto even_phase = taskflow.emplace([&](tf::Subflow& sf){
-        for(size_t i=0; i<data.size(); i+=2) {
-          sf.emplace([&, i](){
-            if(i+1 < data.size() && data[i] > data[i+1]) {
-              std::swap(data[i], data[i+1]);
-              swapped = true;
-            }
-          });
-        }
-      });
-
-      auto odd_phase = taskflow.emplace([&](tf::Subflow& sf) {
-        for(size_t i=1; i<data.size(); i+=2) {
-          sf.emplace([&, i](){
-            if(i+1 < data.size() && data[i] > data[i+1]) {
-              std::swap(data[i], data[i+1]);
-              swapped = true;
-            }
-          });
-        }
-      });
-
-      init.precede(even_phase).name("init");
-      even_phase.precede(odd_phase).name("even-swap");
-      odd_phase.precede(cond).name("odd-swap");
-      cond.precede(even_phase, stop).name("cond");
-
-      executor.run(taskflow).wait();
-
-      REQUIRE(gold == data);
-    }
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+    
+  std::vector<int> data;
+ 
+  for(int end=1; end <= 1000; end *= 10) {
+ 
+    taskflow.clear();
+    data.resize(end);
+ 
+    for(auto& d : data) d = ::rand()%100;
+ 
+    auto gold = data;
+    std::sort(gold.begin(), gold.end());
+ 
+    std::atomic<bool> swapped;
+ 
+    // init task
+    auto init = taskflow.emplace([&swapped](){ swapped = false; });
+    auto cond = taskflow.emplace([&swapped](){
+      if(swapped) {
+        swapped = false;
+        return 0;
+      }
+      return 1;
+    });
+    auto stop = taskflow.emplace([](){});
+ 
+    auto even_phase = taskflow.emplace([&](tf::Subflow& sf){
+      for(size_t i=0; i<data.size(); i+=2) {
+        sf.emplace([&, i](){
+          if(i+1 < data.size() && data[i] > data[i+1]) {
+            std::swap(data[i], data[i+1]);
+            swapped = true;
+          }
+        });
+      }
+    });
+ 
+    auto odd_phase = taskflow.emplace([&](tf::Subflow& sf) {
+      for(size_t i=1; i<data.size(); i+=2) {
+        sf.emplace([&, i](){
+          if(i+1 < data.size() && data[i] > data[i+1]) {
+            std::swap(data[i], data[i+1]);
+            swapped = true;
+          }
+        });
+      }
+    });
+ 
+    init.precede(even_phase).name("init");
+    even_phase.precede(odd_phase).name("even-swap");
+    odd_phase.precede(cond).name("odd-swap");
+    cond.precede(even_phase, stop).name("cond");
+ 
+    executor.run(taskflow).wait();
+ 
+    REQUIRE(gold == data);
   }
 }
+
+TEST_CASE("BubbleSort.1thread" * doctest::timeout(300)) {
+  bubble_sort(1);
+}
+
+TEST_CASE("BubbleSort.2threads" * doctest::timeout(300)) {
+  bubble_sort(2);
+}
+
+TEST_CASE("BubbleSort.3threads" * doctest::timeout(300)) {
+  bubble_sort(3);
+}
+
+TEST_CASE("BubbleSort.4threads" * doctest::timeout(300)) {
+  bubble_sort(4);
+}
+
+TEST_CASE("BubbleSort.5threads" * doctest::timeout(300)) {
+  bubble_sort(5);
+}
+
+TEST_CASE("BubbleSort.6threads" * doctest::timeout(300)) {
+  bubble_sort(6);
+}
+
+TEST_CASE("BubbleSort.7threads" * doctest::timeout(300)) {
+  bubble_sort(7);
+}
+
+TEST_CASE("BubbleSort.8threads" * doctest::timeout(300)) {
+  bubble_sort(8);
+}
+
 
 // --------------------------------------------------------
 // Testcase: SelectionSort
 // --------------------------------------------------------
-TEST_CASE("SelectionSort" * doctest::timeout(300)) {
+
+void selection_sort(unsigned W) {
 
   std::function<
     void(tf::Subflow& sf, std::vector<int>&, int, int, int&)
@@ -312,60 +510,91 @@ TEST_CASE("SelectionSort" * doctest::timeout(300)) {
     SM.succeed(SL, SR);
   };
 
-  for(unsigned w=1; w<=9; w+=2) {
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+  std::vector<int> data;
 
-    tf::Executor executor(w);
+  for(int end=1; end <= 256; end <<= 1) {
 
-    for(int end=16; end <= 512; end <<= 1) {
-      tf::Taskflow taskflow("SelectionSort");
+    taskflow.clear();
+    data.resize(end);
 
-      std::vector<int> data(end);
+    for(auto& d : data) d = ::rand()%100;
 
-      for(auto& d : data) d = ::rand()%100;
+    auto gold = data;
+    std::sort(gold.begin(), gold.end());
 
-      auto gold = data;
-      std::sort(gold.begin(), gold.end());
+    int beg = 0;
+    int min = -1;
 
-      int beg = 0;
-      int min = -1;
+    auto start = taskflow.emplace([](){});
 
-      auto start = taskflow.emplace([](){});
+    auto argmin = taskflow.emplace(
+      [&spawn, &data, &beg, end, &min](tf::Subflow& sf) mutable {
+      spawn(sf, data, beg, end, min);
+    }).name(std::string("[0")
+          + ":"
+          + std::to_string(end) + ")");
 
-      auto argmin = taskflow.emplace(
-        [&spawn, &data, &beg, end, &min](tf::Subflow& sf) mutable {
-        spawn(sf, data, beg, end, min);
-      }).name(std::string("[0")
-            + ":"
-            + std::to_string(end) + ")");
+    auto putmin = taskflow.emplace([&](){
+      std::swap(data[beg], data[min]);
+      //std::cout << "select " << data[beg] << '\n';
+      beg++;
+      if(beg < end) {
+        min = -1;
+        return 0;
+      }
+      else return 1;
+    });
 
-      auto putmin = taskflow.emplace([&](){
-        std::swap(data[beg], data[min]);
-        //std::cout << "select " << data[beg] << '\n';
-        beg++;
-        if(beg < end) {
-          min = -1;
-          return 0;
-        }
-        else return 1;
-      });
+    start.precede(argmin);
+    argmin.precede(putmin);
+    putmin.precede(argmin);
 
-      start.precede(argmin);
-      argmin.precede(putmin);
-      putmin.precede(argmin);
+    executor.run(taskflow).wait();
 
-      executor.run(taskflow).wait();
-
-      REQUIRE(gold == data);
-      //std::exit(1);
-    }
+    REQUIRE(gold == data);
+    //std::exit(1);
   }
+}
 
+TEST_CASE("SelectionSort.1thread" * doctest::timeout(300)) {
+  selection_sort(1);
+}
+
+TEST_CASE("SelectionSort.2threads" * doctest::timeout(300)) {
+  selection_sort(2);
+}
+
+TEST_CASE("SelectionSort.3threads" * doctest::timeout(300)) {
+  selection_sort(3);
+}
+
+TEST_CASE("SelectionSort.4threads" * doctest::timeout(300)) {
+  selection_sort(4);
+}
+
+TEST_CASE("SelectionSort.5threads" * doctest::timeout(300)) {
+  selection_sort(5);
+}
+
+TEST_CASE("SelectionSort.6threads" * doctest::timeout(300)) {
+  selection_sort(6);
+}
+
+TEST_CASE("SelectionSort.7threads" * doctest::timeout(300)) {
+  selection_sort(7);
+}
+
+TEST_CASE("SelectionSort.8threads" * doctest::timeout(300)) {
+  selection_sort(8);
 }
 
 // --------------------------------------------------------
 // Testcase: MergeSort
 // --------------------------------------------------------
-TEST_CASE("MergeSort" * doctest::timeout(300)) {
+
+void merge_sort(unsigned W) {
 
   std::function<void(tf::Subflow& sf, std::vector<int>&, int, int)> spawn;
 
@@ -422,38 +651,69 @@ TEST_CASE("MergeSort" * doctest::timeout(300)) {
     SM.succeed(SL, SR);
   };
 
-  for(unsigned w=1; w<=9; w+=2) {
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+  std::vector<int> data;
 
-    tf::Executor executor(w);
+  for(int end=10; end <= 10000; end *= 10) {
 
-    for(int end=10; end <= 10000; end = end * 10) {
-      tf::Taskflow taskflow("MergeSort");
+    taskflow.clear();
+    data.resize(end);
 
-      std::vector<int> data(end);
+    for(auto& d : data) d = ::rand()%100;
 
-      for(auto& d : data) d = ::rand()%100;
+    auto gold = data;
 
-      auto gold = data;
+    taskflow.emplace([&spawn, &data, end](tf::Subflow& sf){
+      spawn(sf, data, 0, end);
+    }).name(std::string("[0")
+          + ":"
+          + std::to_string(end) + ")");
 
-      taskflow.emplace([&spawn, &data, end](tf::Subflow& sf){
-        spawn(sf, data, 0, end);
-      }).name(std::string("[0")
-            + ":"
-            + std::to_string(end) + ")");
+    executor.run(taskflow).wait();
 
-      executor.run(taskflow).wait();
+    std::sort(gold.begin(), gold.end());
 
-      std::sort(gold.begin(), gold.end());
-
-      REQUIRE(gold == data);
-    }
+    REQUIRE(gold == data);
   }
+}
+
+TEST_CASE("MergeSort.1thread" * doctest::timeout(300)) {
+  merge_sort(1);
+}
+
+TEST_CASE("MergeSort.2threads" * doctest::timeout(300)) {
+  merge_sort(2);
+}
+
+TEST_CASE("MergeSort.3threads" * doctest::timeout(300)) {
+  merge_sort(3);
+}
+
+TEST_CASE("MergeSort.4threads" * doctest::timeout(300)) {
+  merge_sort(4);
+}
+
+TEST_CASE("MergeSort.5threads" * doctest::timeout(300)) {
+  merge_sort(5);
+}
+
+TEST_CASE("MergeSort.6threads" * doctest::timeout(300)) {
+  merge_sort(6);
+}
+
+TEST_CASE("MergeSort.7threads" * doctest::timeout(300)) {
+  merge_sort(7);
+}
+
+TEST_CASE("MergeSort.8threads" * doctest::timeout(300)) {
+  merge_sort(8);
 }
 
 // --------------------------------------------------------
 // Testcase: QuickSort
 // --------------------------------------------------------
-TEST_CASE("QuickSort" * doctest::timeout(300)) {
+void quick_sort(unsigned W) {
 
   using itr_t = std::vector<int>::iterator;
 
@@ -502,34 +762,67 @@ TEST_CASE("QuickSort" * doctest::timeout(300)) {
           + ')');
   };
 
-  for(unsigned w=1; w<=9; w+=2) {
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+  std::vector<int> data;
 
-    tf::Executor executor(w);
+  for(size_t end=1; end <= 10000; end *= 10) {
 
-    for(int end=16; end <= 16384; end <<= 1) {
+    taskflow.clear();
+    data.resize(end);
 
-      tf::Taskflow taskflow("QuickSort");
+    for(auto& d : data) d = ::rand()%100;
 
-      std::vector<int> data(end);
+    auto gold = data;
 
-      for(auto& d : data) d = ::rand()%100;
+    taskflow.emplace([&spawn, &data](tf::Subflow& sf){
+      spawn(sf, data, data.begin(), data.end());
+    }).name(std::string("[0")
+          + ":"
+          + std::to_string(end) + ")");
 
-      auto gold = data;
+    executor.run(taskflow).wait();
 
-      taskflow.emplace([&spawn, &data](tf::Subflow& sf){
-        spawn(sf, data, data.begin(), data.end());
-      }).name(std::string("[0")
-            + ":"
-            + std::to_string(end) + ")");
+    std::sort(gold.begin(), gold.end());
 
-      executor.run(taskflow).wait();
-
-      std::sort(gold.begin(), gold.end());
-
-      REQUIRE(gold == data);
-    }
+    REQUIRE(gold == data);
   }
+  
 }
+
+TEST_CASE("QuickSort.1thread" * doctest::timeout(300)) {
+  quick_sort(1);
+}
+
+TEST_CASE("QuickSort.2threads" * doctest::timeout(300)) {
+  quick_sort(2);
+}
+
+TEST_CASE("QuickSort.3threads" * doctest::timeout(300)) {
+  quick_sort(3);
+}
+
+TEST_CASE("QuickSort.4threads" * doctest::timeout(300)) {
+  quick_sort(4);
+}
+
+TEST_CASE("QuickSort.5threads" * doctest::timeout(300)) {
+  quick_sort(5);
+}
+
+TEST_CASE("QuickSort.6threads" * doctest::timeout(300)) {
+  quick_sort(6);
+}
+
+TEST_CASE("QuickSort.7threads" * doctest::timeout(300)) {
+  quick_sort(7);
+}
+
+TEST_CASE("QuickSort.8threads" * doctest::timeout(300)) {
+  quick_sort(8);
+}
+
+
 
 //// ----------------------------------------------------------------------------
 //// Exception

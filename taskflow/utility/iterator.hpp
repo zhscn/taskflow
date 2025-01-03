@@ -22,5 +22,6 @@ constexpr std::enable_if_t<std::is_integral<std::decay_t<B>>::value &&
 distance(B beg, E end, S step) {
   return (end - beg + step + (step > 0 ? -1 : 1)) / step;
 }
+  
 
 }  // end of namespace tf -----------------------------------------------------

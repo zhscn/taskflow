@@ -51,6 +51,28 @@ class FlowBuilder {
     std::enable_if_t<is_static_task_v<C>, void>* = nullptr
   >
   Task emplace(C&& callable);
+  
+  /**
+  @brief creates a runtime task
+
+  @tparam C callable type constructible from std::function<void(tf::Runtime&)>
+
+  @param callable callable to construct a runtime task
+
+  @return a tf::Task handle
+
+  The following example creates a runtime task.
+
+  @code{.cpp}
+  tf::Task static_task = taskflow.emplace([](tf::Runtime&){});
+  @endcode
+
+  Please refer to @ref RuntimeTasking for details.
+  */
+  template <typename C,
+    std::enable_if_t<is_runtime_task_v<C>, void>* = nullptr
+  >
+  Task emplace(C&& callable);
 
   /**
   @brief creates a dynamic task
@@ -610,28 +632,26 @@ class FlowBuilder {
   // ------------------------------------------------------------------------
   // scan
   // ------------------------------------------------------------------------
-  
-  /**
+
+    /**
   @brief creates an STL-styled parallel inclusive-scan task
 
   @tparam B beginning iterator type
   @tparam E ending iterator type
   @tparam D destination iterator type
   @tparam BOP summation operator type
-  @tparam P partitioner type (default tf::DefaultPartitioner)
 
   @param first start of input range
   @param last end of input range
   @param d_first start of output range (may be the same as input range)
   @param bop function to perform summation
-  @param part partitioning algorithm to schedule parallel iterations
 
   Performs the cumulative sum (aka prefix sum, aka scan) of the input range
-  and writes the result to the output range. 
+  and writes the result to the output range.
   Each element of the output range contains the
   running total of all earlier elements using the given binary operator
   for summation.
-  
+
   This function generates an @em inclusive scan, meaning that the N-th element
   of the output range is the sum of the first N input elements,
   so the N-th input element is included.
@@ -642,18 +662,16 @@ class FlowBuilder {
     input.begin(), input.end(), input.begin(), std::plus<int>{}
   );
   executor.run(taskflow).wait();
-  
+
   // input is {1, 3, 6, 10, 15}
   @endcode
-  
+
   Iterators are templated to enable stateful range using std::reference_wrapper.
-  
+
   Please refer to @ref ParallelScan for details.
   */
-  template <typename B, typename E, typename D, typename BOP, typename P = DefaultPartitioner,
-    std::enable_if_t<is_partitioner_v<std::decay_t<P>>, void>* = nullptr
-  >
-  Task inclusive_scan(B first, E last, D d_first, BOP bop, P part = P());
+  template <typename B, typename E, typename D, typename BOP>
+  Task inclusive_scan(B first, E last, D d_first, BOP bop);
   
   /**
   @brief creates an STL-styled parallel inclusive-scan task with an initial value
@@ -663,14 +681,12 @@ class FlowBuilder {
   @tparam D destination iterator type
   @tparam BOP summation operator type
   @tparam T initial value type
-  @tparam P partitioner type (default tf::DefaultPartitioner)
 
   @param first start of input range
   @param last end of input range
   @param d_first start of output range (may be the same as input range)
   @param bop function to perform summation
   @param init initial value
-  @param part partitioning algorithm to schedule parallel iterations
 
   Performs the cumulative sum (aka prefix sum, aka scan) of the input range
   and writes the result to the output range. 
@@ -697,10 +713,8 @@ class FlowBuilder {
   Please refer to @ref ParallelScan for details.
 
   */
-  template <typename B, typename E, typename D, typename BOP, typename T, typename P = DefaultPartitioner,
-    std::enable_if_t<!is_partitioner_v<std::decay_t<T>>, void>* = nullptr
-  >
-  Task inclusive_scan(B first, E last, D d_first, BOP bop, T init, P part = P());
+  template <typename B, typename E, typename D, typename BOP, typename T>
+  Task inclusive_scan(B first, E last, D d_first, BOP bop, T init);
   
   /**
   @brief creates an STL-styled parallel exclusive-scan task
@@ -710,14 +724,12 @@ class FlowBuilder {
   @tparam D destination iterator type
   @tparam T initial value type
   @tparam BOP summation operator type
-  @tparam P partitioner type (default tf::DefaultPartitioner)
 
   @param first start of input range
   @param last end of input range
   @param d_first start of output range (may be the same as input range)
   @param init initial value
   @param bop function to perform summation
-  @param part partitioning algorithm to schedule parallel iterations
 
   Performs the cumulative sum (aka prefix sum, aka scan) of the input range
   and writes the result to the output range. 
@@ -743,8 +755,8 @@ class FlowBuilder {
   
   Please refer to @ref ParallelScan for details.
   */
-  template <typename B, typename E, typename D, typename T, typename BOP, typename P = DefaultPartitioner>
-  Task exclusive_scan(B first, E last, D d_first, T init, BOP bop, P part = P());
+  template <typename B, typename E, typename D, typename T, typename BOP>
+  Task exclusive_scan(B first, E last, D d_first, T init, BOP bop);
   
   // ------------------------------------------------------------------------
   // transform scan
@@ -758,14 +770,12 @@ class FlowBuilder {
   @tparam D destination iterator type
   @tparam BOP summation operator type
   @tparam UOP transform operator type
-  @tparam P partitioner type (default tf::DefaultPartitioner)
 
   @param first start of input range
   @param last end of input range
   @param d_first start of output range (may be the same as input range)
   @param bop function to perform summation
   @param uop function to transform elements of the input range
-  @param part partitioning algorithm to schedule parallel iterations
 
   Write the cumulative sum (aka prefix sum, aka scan) of the input range
   to the output range. Each element of the output range contains the
@@ -792,10 +802,8 @@ class FlowBuilder {
   
   Please refer to @ref ParallelScan for details.
   */
-  template <typename B, typename E, typename D, typename BOP, typename UOP, typename P = DefaultPartitioner,
-    std::enable_if_t<is_partitioner_v<std::decay_t<P>>, void>* = nullptr
-  >
-  Task transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop, P part = P());
+  template <typename B, typename E, typename D, typename BOP, typename UOP>
+  Task transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop);
   
   /**
   @brief creates an STL-styled parallel transform-inclusive scan task
@@ -806,7 +814,6 @@ class FlowBuilder {
   @tparam BOP summation operator type
   @tparam UOP transform operator type
   @tparam T initial value type
-  @tparam P partitioner type (default tf::DefaultPartitioner)
 
   @param first start of input range
   @param last end of input range
@@ -814,7 +821,6 @@ class FlowBuilder {
   @param bop function to perform summation
   @param uop function to transform elements of the input range
   @param init initial value
-  @param part partitioning algorithm to schedule parallel iterations
 
   Write the cumulative sum (aka prefix sum, aka scan) of the input range
   to the output range. Each element of the output range contains the
@@ -842,10 +848,8 @@ class FlowBuilder {
   
   Please refer to @ref ParallelScan for details.
   */
-  template <typename B, typename E, typename D, typename BOP, typename UOP, typename T, typename P = DefaultPartitioner,
-    std::enable_if_t<!is_partitioner_v<std::decay_t<T>>, void>* = nullptr
-  >
-  Task transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop, T init, P part = P());
+  template <typename B, typename E, typename D, typename BOP, typename UOP, typename T>
+  Task transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop, T init);
   
   /**
   @brief creates an STL-styled parallel transform-exclusive scan task
@@ -856,7 +860,6 @@ class FlowBuilder {
   @tparam BOP summation operator type
   @tparam UOP transform operator type
   @tparam T initial value type
-  @tparam P partitioner type (default tf::DefaultPartitioner)
 
   @param first start of input range
   @param last end of input range
@@ -864,7 +867,6 @@ class FlowBuilder {
   @param bop function to perform summation
   @param uop function to transform elements of the input range
   @param init initial value
-  @param part partitioning algorithm to schedule parallel iterations
 
   Write the cumulative sum (aka prefix sum, aka scan) of the input range
   to the output range. Each element of the output range contains the
@@ -891,8 +893,8 @@ class FlowBuilder {
   
   Please refer to @ref ParallelScan for details.
   */
-  template <typename B, typename E, typename D, typename T, typename BOP, typename UOP, typename P = DefaultPartitioner>
-  Task transform_exclusive_scan(B first, E last, D d_first, T init, BOP bop, UOP uop, P part = P());
+  template <typename B, typename E, typename D, typename T, typename BOP, typename UOP>
+  Task transform_exclusive_scan(B first, E last, D d_first, T init, BOP bop, UOP uop);
 
   // ------------------------------------------------------------------------
   // find
@@ -1171,6 +1173,14 @@ Task FlowBuilder::emplace(C&& c) {
 }
 
 // Function: emplace
+template <typename C, std::enable_if_t<is_runtime_task_v<C>, void>*>
+Task FlowBuilder::emplace(C&& c) {
+  return Task(_graph._emplace_back("", nullptr, nullptr, 0,
+    std::in_place_type_t<Node::Runtime>{}, std::forward<C>(c)
+  ));
+}
+
+// Function: emplace
 template <typename C, std::enable_if_t<is_subflow_task_v<C>, void>*>
 Task FlowBuilder::emplace(C&& c) {
   return Task(_graph._emplace_back("", nullptr, nullptr, 0,
@@ -1276,11 +1286,12 @@ inline void FlowBuilder::linearize(std::initializer_list<Task> keys) {
 
 @brief class to construct a subflow graph from the execution of a dynamic task
 
-tf::Subflow is a derived class from tf::Runtime with a specialized mechanism
-to manage the execution of a child graph.
-By default, a subflow automatically @em joins its parent node.
-You may explicitly join or detach a subflow by calling tf::Subflow::join
+tf::Subflow is spawned from the execution of a task to dynamically manage a 
+child graph that may depend on runtime variables.
+You can explicitly join or detach a subflow by calling tf::Subflow::join
 or tf::Subflow::detach, respectively.
+By default, the %Taskflow runtime will implicitly join a subflow it is is joinable.
+
 The following example creates a taskflow graph that spawns a subflow from
 the execution of task @c B, and the subflow contains three tasks, @c B1,
 @c B2, and @c B3, where @c B3 runs after @c B1 and @c B2.
@@ -1307,15 +1318,13 @@ C.precede(D);  // D runs after C
 @endcode
 
 */
-class Subflow : public FlowBuilder,
-                public Runtime {
+class Subflow : public FlowBuilder {
 
   friend class Executor;
   friend class FlowBuilder;
-  friend class Runtime;
 
   public:
-
+    
     /**
     @brief enables the subflow to join its parent task
 
@@ -1351,17 +1360,6 @@ class Subflow : public FlowBuilder,
     void detach();
 
     /**
-    @brief resets the subflow to a joinable state
-
-    @param clear_graph specifies whether to clear the associated graph (default @c true)
-
-    Clears the underlying task graph depending on the 
-    given variable @c clear_graph (default @c true) and then
-    updates the subflow to a joinable state.
-    */
-    void reset(bool clear_graph = true);
-
-    /**
     @brief queries if the subflow is joinable
 
     This member function queries if the subflow is joinable.
@@ -1378,33 +1376,63 @@ class Subflow : public FlowBuilder,
     */
     bool joinable() const noexcept;
 
+    /**
+    @brief acquires the associated executor
+    */
+    Executor& executor() noexcept;
+    
+    /**
+    @brief acquires the associated graph
+    */
+    Graph& graph() { return _graph; }
+
   private:
-
-    bool _joinable {true};
-
+    
+    // with only the most significant bit set: 1000...000
+    constexpr static size_t JOINED_BIT = (~size_t(0)) ^ ((~size_t(0)) >> 1);
+    
     Subflow(Executor&, Worker&, Node*, Graph&);
+    
+    Subflow() = delete;
+    Subflow(const Subflow&) = delete;
+    Subflow(Subflow&&) = delete;
+
+    Executor& _executor;
+    Worker& _worker;
+    Node* _parent;
+
+    size_t _tag;
 };
 
 // Constructor
-inline Subflow::Subflow(
-  Executor& executor, Worker& worker, Node* parent, Graph& graph
-) :
-  FlowBuilder {graph},
-  Runtime {executor, worker, parent} {
+inline Subflow::Subflow(Executor& executor, Worker& worker, Node* parent, Graph& graph) :
+  FlowBuilder {graph}, 
+  _executor   {executor}, 
+  _worker     {worker}, 
+  _parent     {parent}, 
+  _tag        {graph.size()} {
+
   // assert(_parent != nullptr);
-}
-
-// Function: joined
-inline bool Subflow::joinable() const noexcept {
-  return _joinable;
-}
-
-// Procedure: reset
-inline void Subflow::reset(bool clear_graph) {
-  if(clear_graph) {
-    _graph._clear();
+  // clear undetached nodes in reversed order
+  for(auto i = graph.rbegin(); i != graph.rend(); ++i) {
+    if((i->get()->_nstate & NSTATE::DETACHED) == 0) {
+      --_tag;
+    }
+    else {
+      break;
+    }
   }
-  _joinable = true;
+  graph.resize(_tag);
+}
+
+// Function: joinable
+inline bool Subflow::joinable() const noexcept {
+  return (_tag & JOINED_BIT) == 0;
+}
+
+// Function: executor
+inline Executor& Subflow::executor() noexcept {
+  return _executor;
 }
 
 }  // end of namespace tf. ---------------------------------------------------
